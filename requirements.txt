@@ -5,3 +5,6 @@ pytest
 matplotlib
 matplotlib
 matplotlib
+matplotlib
+matplotlib
+seaborn

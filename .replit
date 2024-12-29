@@ -31,6 +31,10 @@ args = "Verify README Example"
 task = "workflow.run"
 args = "Verify Documentation"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Test Visualization"
+
 [[workflows.workflow]]
 name = "Blackjack Simulation"
 author = "agent"
@@ -75,6 +79,20 @@ args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stak
 
 [[workflows.workflow]]
 name = "Verify Documentation"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 10 --verbose"
+
+[[workflows.workflow]]
+name = "Test Visualization"
 author = "agent"
 
 [workflows.workflow.metadata]

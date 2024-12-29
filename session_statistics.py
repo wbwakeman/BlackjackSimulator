@@ -55,7 +55,7 @@ class SessionStatistics:
 
         # Update bankroll distribution bins
         for bin_range, _ in self.bankroll_bins.items():
-            if bin_range.startswith('>'):  # Handle the overflow bin
+            if bin_range.startswith('>'): # Handle the overflow bin
                 threshold = float(bin_range[1:].replace('$', '').replace(',', ''))
                 if final_bankroll > threshold:
                     self.bankroll_bins[bin_range] += 1
@@ -70,47 +70,79 @@ class SessionStatistics:
 
     def plot_bankroll_distribution(self) -> None:
         """Create a visual representation of the bankroll distribution."""
+        # Set figure style and size
         plt.figure(figsize=(12, 6))
+        plt.style.use('default')  # Use default style instead of seaborn
 
         # Extract bin ranges and counts
         bins = list(self.bankroll_bins.keys())
         counts = list(self.bankroll_bins.values())
 
-        # Create bar plot
-        plt.bar(range(len(bins)), counts)
-        plt.xticks(range(len(bins)), bins, rotation=45)
+        # Create bar plot with enhanced styling
+        bars = plt.bar(range(len(bins)), counts, 
+                      color='lightblue', edgecolor='navy', alpha=0.7)
+        plt.xticks(range(len(bins)), bins, rotation=45, ha='right')
 
-        # Customize plot
-        plt.title('Distribution of Final Bankrolls Across Sessions')
-        plt.xlabel('Bankroll Range')
-        plt.ylabel('Number of Sessions')
+        # Add custom title and labels with enhanced styling
+        plt.title('Blackjack Session Results: Bankroll Distribution', 
+                 fontsize=14, pad=20, weight='bold')
+        plt.xlabel('Final Bankroll Range', fontsize=12, labelpad=10)
+        plt.ylabel('Number of Sessions', fontsize=12, labelpad=10)
 
-        # Add count labels on top of bars
-        for i, count in enumerate(counts):
-            plt.text(i, count, str(count), ha='center', va='bottom')
+        # Add count labels on top of bars with improved positioning
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height)}',
+                    ha='center', va='bottom', fontsize=10)
 
+        # Add reference line for initial bankroll
+        plt.axvline(x=len(bins)/3, color='red', linestyle='--', alpha=0.5,
+                   label=f'Initial Bankroll (${self.initial_bankroll:,.0f})')
+
+        # Add grid for better readability
+        plt.grid(True, axis='y', linestyle='--', alpha=0.3)
+        plt.legend()
+
+        # Adjust layout and save
         plt.tight_layout()
-        plt.savefig('bankroll_distribution.png')
+        plt.savefig('bankroll_distribution.png', dpi=300, bbox_inches='tight')
         plt.close()
 
     def plot_bankroll_histogram(self) -> None:
-        """Create a histogram of final bankrolls."""
-        plt.figure(figsize=(10, 6))
+        """Create a histogram of final bankrolls with enhanced visualization."""
+        plt.figure(figsize=(12, 6))
+        plt.style.use('default')  # Use default style instead of seaborn
 
-        plt.hist(self.session_results, bins=20, edgecolor='black')
-        plt.title('Histogram of Final Bankrolls')
-        plt.xlabel('Final Bankroll ($)')
-        plt.ylabel('Frequency')
+        # Create histogram with enhanced styling
+        n, bins, patches = plt.hist(self.session_results, bins=20, 
+                                  color='lightgreen', edgecolor='darkgreen', 
+                                  alpha=0.7, density=True)
 
-        # Add vertical lines for key values
-        plt.axvline(self.initial_bankroll, color='r', linestyle='--', 
-                   label='Initial Bankroll')
-        plt.axvline(self.initial_bankroll * 2, color='g', linestyle='--', 
-                   label='Double Initial')
+        # Add mean and median lines
+        mean_bankroll = sum(self.session_results) / len(self.session_results)
+        median_bankroll = sorted(self.session_results)[len(self.session_results)//2]
 
-        plt.legend()
+        plt.axvline(mean_bankroll, color='red', linestyle='--', 
+                   label=f'Mean (${mean_bankroll:,.2f})', linewidth=2)
+        plt.axvline(median_bankroll, color='blue', linestyle='--',
+                   label=f'Median (${median_bankroll:,.2f})', linewidth=2)
+        plt.axvline(self.initial_bankroll, color='green', linestyle='--',
+                   label=f'Initial (${self.initial_bankroll:,.2f})', linewidth=2)
+
+        # Enhanced title and labels
+        plt.title('Distribution of Final Bankrolls Across Sessions',
+                 fontsize=14, pad=20, weight='bold')
+        plt.xlabel('Final Bankroll ($)', fontsize=12, labelpad=10)
+        plt.ylabel('Density', fontsize=12, labelpad=10)
+
+        # Add grid and legend with improved styling
+        plt.grid(True, linestyle='--', alpha=0.3)
+        plt.legend(fontsize=10, loc='upper right')
+
+        # Adjust layout and save with high resolution
         plt.tight_layout()
-        plt.savefig('bankroll_histogram.png')
+        plt.savefig('bankroll_histogram.png', dpi=300, bbox_inches='tight')
         plt.close()
 
     def print_results(self) -> None:

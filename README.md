@@ -1,1 +1,6 @@
-python blackjack_sim.py [OPTIONS]
+# Clone the repository
+git clone <repository-url>
+cd blackjack-simulation
+
+# Install required dependencies
+pip install -r requirements.txt
