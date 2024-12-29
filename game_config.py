@@ -35,6 +35,7 @@ class GameConfig:
         self.allow_resplit_aces = bool(allow_resplit_aces)
         self.double_after_split = bool(double_after_split)
         self.strategy_file = str(strategy_file)
+        self.test_scenario = test_scenario
 
         # Critical parameters (private with validation)
         self._dealer_hits_soft_17 = True  # Must always be True
@@ -61,6 +62,7 @@ class GameConfig:
             print(f"allow_resplit_aces: {self.allow_resplit_aces}")
             print(f"double_after_split: {self.double_after_split}")
             print(f"strategy_file: {self.strategy_file}")
+            print(f"test_scenario: {self.test_scenario}")
 
         # Log configuration state after initialization
         self._log_config_state("GameConfig initialized")
@@ -210,6 +212,7 @@ class GameConfig:
             print(f"  allow_resplit_aces: {getattr(self, 'allow_resplit_aces', None)}")
             print(f"  double_after_split: {getattr(self, 'double_after_split', None)}")
             print(f"  strategy_file: {getattr(self, 'strategy_file', None)}")
+            print(f"  test_scenario: {getattr(self, 'test_scenario', None)}")
             print("-------------------")
 
     @classmethod

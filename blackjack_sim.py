@@ -197,6 +197,8 @@ def main():
     if args.strategy_file:
         config.strategy_file = args.strategy_file
     config.verbose_logging = args.verbose
+    if args.test_scenario:
+        config.test_scenario = args.test_scenario
 
     # Critical parameters are always enforced
     config.dealer_hits_soft_17 = True
