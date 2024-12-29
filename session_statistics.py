@@ -33,12 +33,13 @@ class SessionStatistics:
         # Ensure logs directory exists
         os.makedirs('logs', exist_ok=True)
 
-        # Create bins with initial bankroll as a key boundary
-        bin_size = self.initial_bankroll * 0.4  # Create bins of 40% of initial bankroll
-        max_bin = self.initial_bankroll * 3     # Track up to 300% of initial bankroll
+        # Create bins with initial bankroll as the central boundary
+        bin_size = self.initial_bankroll * 0.2  # Create bins of 20% of initial bankroll
+        lowest_bin = 0
+        highest_bin = self.initial_bankroll * 3  # Track up to 300% of initial bankroll
 
         # Start with bins below initial bankroll
-        current = 0
+        current = lowest_bin
         while current < self.initial_bankroll:
             next_level = min(current + bin_size, self.initial_bankroll)
             bin_label = f"${current:,.0f}-${next_level:,.0f}"
@@ -46,14 +47,15 @@ class SessionStatistics:
             current = next_level
 
         # Add bins above initial bankroll
-        while current < max_bin:
-            next_level = min(current + bin_size, max_bin)
+        current = self.initial_bankroll
+        while current < highest_bin:
+            next_level = min(current + bin_size, highest_bin)
             bin_label = f"${current:,.0f}-${next_level:,.0f}"
             self.bankroll_bins[bin_label] = 0
             current = next_level
 
-        # Add final bin for anything above max_bin
-        self.bankroll_bins[f">${max_bin:,.0f}"] = 0
+        # Add final bin for anything above highest_bin
+        self.bankroll_bins[f">${highest_bin:,.0f}"] = 0
 
     def update_session(self, final_bankroll: float) -> None:
         """

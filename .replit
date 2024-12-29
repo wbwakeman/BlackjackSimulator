@@ -55,6 +55,10 @@ args = "Test Simulation"
 task = "workflow.run"
 args = "Verify Configuration"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Verify Changes"
+
 [[workflows.workflow]]
 name = "Blackjack Simulation"
 author = "agent"
@@ -194,3 +198,17 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python blackjack_sim.py --num_sessions 3 --num_hands 50 --starting_stake 1000 --standard_bet 10 --verbose --ruleset wcent"
+
+[[workflows.workflow]]
+name = "Verify Changes"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 10 --verbose"
