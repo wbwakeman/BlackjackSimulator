@@ -13,3 +13,4 @@ matplotlib
 trafilatura
 scipy
 scipy
+scipy

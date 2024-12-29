@@ -4,9 +4,12 @@ from typing import List, Dict, Optional
 import csv
 from datetime import datetime
 import os
-import math
-import statistics as stats_lib  # Renamed to avoid collision with local statistics.py
-from scipy import stats
+import statistics as stats_lib  # Rename import to avoid conflict
+try:
+    from scipy import stats as scipy_stats
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
 
 @dataclass
 class SessionStatistics:
@@ -20,9 +23,9 @@ class SessionStatistics:
     quad_bins_threshold: Optional[float] = None  # New parameter for quad-bins feature
 
     # Session outcome counters
-    bankrupt_sessions: int = 0  # Sessions ending at $0
-    doubled_sessions: int = 0   # Sessions where bankroll doubled
-    completed_sessions: int = 0  # Total completed sessions
+    bankrupt_sessions: int = 0
+    doubled_sessions: int = 0
+    completed_sessions: int = 0
 
     # Bankroll distribution tracking
     bankroll_bins: Dict[str, int] = field(default_factory=dict)
@@ -118,7 +121,7 @@ class SessionStatistics:
                 else:
                     # Extract range values
                     low, high = map(lambda x: float(x.replace('$', '').replace(',', '')), 
-                                bin_range.split('-'))
+                                  bin_range.split('-'))
                     if low <= final_bankroll <= high:
                         self.bankroll_bins[bin_range] += 1
                         break
@@ -131,11 +134,16 @@ class SessionStatistics:
         max_count = max(bin_data.values())
         scale = max_width / (max_count if max_count > 0 else 1)
 
+        # Calculate the maximum label length for alignment
+        max_label_len = max(len(label) for label in bin_data.keys())
+
         histogram = []
         for label, count in bin_data.items():
             bar_width = int(count * scale)
             bar = '█' * bar_width
-            histogram.append(f"{label:<20} | {bar} ({count})")
+            # Pad the label to align all bars
+            padded_label = f"{label:<{max_label_len}}"
+            histogram.append(f"{padded_label} | {bar} ({count:2d} sessions)")
 
         return '\n'.join(histogram)
 
@@ -145,27 +153,36 @@ class SessionStatistics:
 
         for bin_name, values in self.quad_bins.items():
             if values:
+                mean_value = sum(values) / len(values)
+                # Calculate standard deviation manually if needed
+                if len(values) > 1:
+                    variance = sum((x - mean_value) ** 2 for x in values) / (len(values) - 1)
+                    std_dev = variance ** 0.5
+                else:
+                    std_dev = 0.0
+
                 stats_data[bin_name] = {
                     'count': len(values),
-                    'mean': stats_lib.mean(values) if values else 0,
-                    'std': stats_lib.stdev(values) if len(values) > 1 else 0,
+                    'mean': mean_value,
+                    'std': std_dev,
                     'percentage': (len(values) / self.completed_sessions * 100)
                 }
             else:
                 stats_data[bin_name] = {
                     'count': 0,
-                    'mean': 0,
-                    'std': 0,
-                    'percentage': 0
+                    'mean': 0.0,
+                    'std': 0.0,
+                    'percentage': 0.0
                 }
 
         return stats_data
 
-    def _perform_statistical_tests(self) -> Dict[str, float]:
+    def _perform_statistical_tests(self) -> Dict[str, Optional[float]]:
         """Perform statistical significance tests between bins"""
         test_results = {}
+        if not SCIPY_AVAILABLE:
+            return {}
 
-        # Perform Mann-Whitney U test between adjacent bins
         bin_pairs = [
             ('below_threshold', 'below_initial'),
             ('below_initial', 'above_initial'),
@@ -173,14 +190,17 @@ class SessionStatistics:
         ]
 
         for bin1, bin2 in bin_pairs:
-            if (len(self.quad_bins[bin1]) > 0 and 
-                len(self.quad_bins[bin2]) > 0):
-                statistic, pvalue = stats.mannwhitneyu(
-                    self.quad_bins[bin1],
-                    self.quad_bins[bin2],
-                    alternative='two-sided'
-                )
-                test_results[f'{bin1}_vs_{bin2}'] = pvalue
+            values1 = self.quad_bins[bin1]
+            values2 = self.quad_bins[bin2]
+
+            if len(values1) > 0 and len(values2) > 0:
+                try:
+                    statistic, pvalue = scipy_stats.mannwhitneyu(
+                        values1, values2, alternative='two-sided'
+                    )
+                    test_results[f'{bin1}_vs_{bin2}'] = pvalue
+                except ValueError:
+                    test_results[f'{bin1}_vs_{bin2}'] = None
             else:
                 test_results[f'{bin1}_vs_{bin2}'] = None
 
@@ -201,34 +221,54 @@ class SessionStatistics:
         # Calculate statistics
         stats = self._calculate_quad_bins_stats()
 
-        # Prepare histogram data
+        # Prepare histogram data with clear bankroll ranges
         hist_data = {
-            f"< ${lower_threshold:,.2f}": len(self.quad_bins['below_threshold']),
-            f"${lower_threshold:,.2f}-${self.initial_bankroll:,.2f}": len(self.quad_bins['below_initial']),
-            f"${self.initial_bankroll:,.2f}-${upper_threshold:,.2f}": len(self.quad_bins['above_initial']),
-            f"> ${upper_threshold:,.2f}": len(self.quad_bins['above_threshold'])
+            f"< ${lower_threshold:,.2f}":
+                len(self.quad_bins['below_threshold']),
+            f"${lower_threshold:,.2f} - ${self.initial_bankroll:,.2f}":
+                len(self.quad_bins['below_initial']),
+            f"${self.initial_bankroll:,.2f} - ${upper_threshold:,.2f}":
+                len(self.quad_bins['above_initial']),
+            f"> ${upper_threshold:,.2f}":
+                len(self.quad_bins['above_threshold'])
         }
 
-        # Print ASCII histogram
-        print("\nDistribution:")
+        # Print distribution header
+        print("\nBankroll Distribution:")
+        print("-" * 60)
         print(self._generate_ascii_histogram(hist_data))
 
-        # Print detailed statistics
+        # Print detailed statistics for each bin
         print("\nDetailed Statistics:")
-        for bin_name, bin_stats in stats.items():
-            print(f"\n{bin_name.replace('_', ' ').title()}:")
-            print(f"  Count: {bin_stats['count']} ({bin_stats['percentage']:.1f}%)")
-            if bin_stats['count'] > 0:
-                print(f"  Mean: ${bin_stats['mean']:.2f}")
-                print(f"  Std Dev: ${bin_stats['std']:.2f}")
+        print("-" * 60)
+        bin_labels = {
+            'below_threshold': 'Significant Loss',
+            'below_initial': 'Moderate Loss',
+            'above_initial': 'Moderate Gain',
+            'above_threshold': 'Significant Gain'
+        }
 
-        # Statistical significance tests
-        print("\nStatistical Significance Tests (Mann-Whitney U):")
-        test_results = self._perform_statistical_tests()
-        for test_name, p_value in test_results.items():
-            if p_value is not None:
-                print(f"  {test_name.replace('_', ' ').title()}: p={p_value:.4f}")
-                print(f"  {'Significant' if p_value < 0.05 else 'Not significant'} at α=0.05")
+        for bin_name, stats_data in stats.items():
+            print(f"\n{bin_labels[bin_name]}:")
+            print(f"  Count:     {stats_data['count']:3d} sessions ({stats_data['percentage']:5.1f}%)")
+            if stats_data['count'] > 0:
+                print(f"  Mean:      ${stats_data['mean']:,.2f}")
+                print(f"  Std Dev:   ${stats_data['std']:,.2f}")
+
+        # Print statistical significance tests if scipy is available
+        if SCIPY_AVAILABLE:
+            test_results = self._perform_statistical_tests()
+            if test_results:
+                print("\nStatistical Significance Tests:")
+                print("-" * 60)
+                for test_name, p_value in test_results.items():
+                    if p_value is not None:
+                        bin1, bin2 = test_name.split('_vs_')
+                        print(f"  {bin_labels[bin1]} vs {bin_labels[bin2]}:")
+                        print(f"    p-value: {p_value:.4f}")
+                        print(f"    {'✓ Significant' if p_value < 0.05 else '✗ Not significant'} at α=0.05")
+        else:
+            print("\nNote: Statistical significance tests unavailable (scipy not installed)")
 
     def print_results(self) -> None:
         """Print comprehensive statistics across all sessions."""
@@ -314,20 +354,17 @@ class SessionStatistics:
         if not self.all_session_histories:
             return metrics
 
-        # Calculate metrics across all sessions
         for history in self.all_session_histories:
             if not history:
                 continue
 
             # Calculate drawdown
             peak = history[0]
-            current_drawdown = 0.0
             for value in history:
                 if value > peak:
                     peak = value
                 current_drawdown = (peak - value) / peak * 100
-                metrics['max_drawdown'] = max(metrics['max_drawdown'],
-                                            current_drawdown)
+                metrics['max_drawdown'] = max(metrics['max_drawdown'], current_drawdown)
 
             # Calculate streaks
             current_streak = 0
@@ -336,9 +373,9 @@ class SessionStatistics:
             loss_streaks = []
 
             for i in range(1, len(history)):
-                diff = history[i] - history[i - 1]
+                diff = history[i] - history[i-1]
                 if diff > 0:  # Win
-                    if current_sign <= 0:  # New streak
+                    if current_sign <= 0:
                         if current_sign < 0:
                             loss_streaks.append(-current_streak)
                         current_streak = 1
@@ -346,7 +383,7 @@ class SessionStatistics:
                     else:
                         current_streak += 1
                 elif diff < 0:  # Loss
-                    if current_sign >= 0:  # New streak
+                    if current_sign >= 0:
                         if current_sign > 0:
                             win_streaks.append(current_streak)
                         current_streak = 1
@@ -362,54 +399,43 @@ class SessionStatistics:
 
             # Update streak metrics
             if win_streaks:
-                metrics['longest_win_streak'] = max(metrics['longest_win_streak'],
-                                                   max(win_streaks))
+                metrics['longest_win_streak'] = max(metrics['longest_win_streak'], max(win_streaks))
                 metrics['avg_win_streak'] = sum(win_streaks) / len(win_streaks)
             if loss_streaks:
-                metrics['longest_loss_streak'] = max(metrics['longest_loss_streak'],
-                                                    -min(loss_streaks))
-                metrics['avg_loss_streak'] = sum(abs(x)
-                                                for x in loss_streaks) / len(loss_streaks)
+                metrics['longest_loss_streak'] = max(metrics['longest_loss_streak'], -min(loss_streaks))
+                metrics['avg_loss_streak'] = sum(abs(x) for x in loss_streaks) / len(loss_streaks)
 
-            # Calculate volatility (standard deviation of returns)
-            returns = [(history[i] - history[i - 1]) / history[i - 1] * 100
-                      for i in range(1, len(history))]
-            if returns:
-                metrics['volatility'] = sum(abs(r)
-                                           for r in returns) / len(returns)  # Average absolute return
+            # Calculate volatility (standard deviation of percentage returns)
+            if len(history) > 1:
+                returns = [(history[i] - history[i-1]) / history[i-1] * 100 for i in range(1, len(history))]
+                if len(returns) > 1:
+                    mean_return = sum(returns) / len(returns)
+                    variance = sum((r - mean_return) ** 2 for r in returns) / (len(returns) - 1)
+                    metrics['volatility'] = variance ** 0.5
 
         return metrics
 
-    def export_session_data(self, filename: Optional[str] = None) -> None:
+    def export_session_data(self) -> None:
         """
-        Export session data to CSV file for external analysis.
+        Export session data to CSV files for external analysis.
         Creates two CSV files in the logs directory:
         1. Session-level summary with aggregate statistics
         2. Hand-by-hand progression of bankroll
-
-        Args:
-            filename: Optional custom filename prefix, defaults to timestamp-based name
         """
         try:
-            # Generate timestamp-based prefix if none provided
-            if filename is None:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                prefix = f"blackjack_session_data_{timestamp}"
-            else:
-                prefix = filename.replace('.csv', '')
+            # Generate timestamp-based prefix
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            prefix = f"blackjack_session_data_{timestamp}"
 
             # Ensure logs directory exists
             os.makedirs('logs', exist_ok=True)
 
-            # Export detailed hand-by-hand data to logs directory
+            # Export detailed hand-by-hand data
             hands_file = os.path.join('logs', f"{prefix}_hands.csv")
             with open(hands_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-
-                # Write header
                 writer.writerow(['Session', 'Hand', 'Bankroll', 'Change'])
 
-                # Write data for each session
                 for session_idx, history in enumerate(self.all_session_histories, 1):
                     prev_bankroll = self.initial_bankroll
                     for hand_idx, bankroll in enumerate(history, 1):
@@ -422,12 +448,10 @@ class SessionStatistics:
                         ])
                         prev_bankroll = bankroll
 
-            # Export session summary data to logs directory
+            # Export session summary data
             summary_file = os.path.join('logs', f"{prefix}_summary.csv")
             with open(summary_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-
-                # Write headers for summary data
                 writer.writerow([
                     'Session',
                     'Final Bankroll',
@@ -438,7 +462,6 @@ class SessionStatistics:
                     'Loss Streak'
                 ])
 
-                # Calculate and write summary data for each session
                 for session_idx, history in enumerate(self.all_session_histories, 1):
                     if history:
                         final_bankroll = history[-1]
@@ -482,10 +505,10 @@ class SessionStatistics:
                             max_loss_streak
                         ])
 
+            print(f"\nSession data exported to:")
+            print(f"  Hand details: {hands_file}")
+            print(f"  Session summary: {summary_file}")
+
         except IOError as e:
             print(f"\nError exporting session data: {str(e)}")
             return
-
-        print(f"\nSession data exported to:")
-        print(f"  Hand details: {hands_file}")
-        print(f"  Session summary: {summary_file}")
