@@ -103,11 +103,14 @@ def run_single_session(config: GameConfig, args) -> float:
         stats.current_bankroll += result.net_profit
         stats.update(result, stats.current_bankroll)
 
+        # Update session statistics for time-series analysis
+        session_stats.update_hand(stats.current_bankroll)
+
         if args.debug:
             print("\nDebug Review - Hand Summary:")
             print("-"*40)
             print("Initial bet: ${:.2f}".format(args.standard_bet))
-            
+
             # Show all hands with complete details
             for i, hand in enumerate(result.final_hands, 1):
                 print(f"\nPlayer hand {i}:")
@@ -120,12 +123,12 @@ def run_single_session(config: GameConfig, args) -> float:
                     print(f"  Final bet: ${hand.bet:.2f}")
                 else:
                     print(f"  Bet: ${hand.bet:.2f}")
-                    
+
             print(f"\nDealer hand: {[str(c) for c in result.dealer_hand.cards]}")
             print(f"Dealer value: {result.dealer_hand.best_value()}")
             print(f"Net result: {'Win' if result.net_profit > 0 else 'Loss' if result.net_profit < 0 else 'Push'}")
             print(f"Amount: ${abs(result.net_profit):.2f}")
-            
+
             # Show special conditions
             print("\nHand conditions:")
             if result.is_blackjack:

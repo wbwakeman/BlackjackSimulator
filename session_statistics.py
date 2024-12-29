@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass, field
 from typing import List, Dict
-import matplotlib.pyplot as plt
+import csv
+from datetime import datetime
 
 @dataclass
 class SessionStatistics:
@@ -21,6 +22,10 @@ class SessionStatistics:
     # Bankroll distribution tracking
     bankroll_bins: Dict[str, int] = field(default_factory=dict)
     session_results: List[float] = field(default_factory=list)
+
+    # Time series tracking
+    current_session_history: List[float] = field(default_factory=list)
+    all_session_histories: List[List[float]] = field(default_factory=list)
 
     def __post_init__(self):
         """Initialize bankroll bins based on initial bankroll"""
@@ -47,6 +52,11 @@ class SessionStatistics:
         self.completed_sessions += 1
         self.session_results.append(final_bankroll)
 
+        # Store the completed session history and reset for next session
+        if self.current_session_history:
+            self.all_session_histories.append(self.current_session_history)
+            self.current_session_history = []
+
         # Track bankruptcy and doubling
         if final_bankroll <= 0:
             self.bankrupt_sessions += 1
@@ -68,85 +78,118 @@ class SessionStatistics:
                     self.bankroll_bins[bin_range] += 1
                     break
 
-    def plot_bankroll_distribution(self) -> None:
-        """Create a visual representation of the bankroll distribution."""
-        # Set figure style and size
-        plt.figure(figsize=(12, 6))
-        plt.style.use('default')  # Use default style instead of seaborn
+    def update_hand(self, current_bankroll: float) -> None:
+        """
+        Track bankroll after each hand for time series analysis.
 
-        # Extract bin ranges and counts
-        bins = list(self.bankroll_bins.keys())
-        counts = list(self.bankroll_bins.values())
+        Args:
+            current_bankroll: The current bankroll after the hand
+        """
+        self.current_session_history.append(current_bankroll)
 
-        # Create bar plot with enhanced styling
-        bars = plt.bar(range(len(bins)), counts, 
-                      color='lightblue', edgecolor='navy', alpha=0.7)
-        plt.xticks(range(len(bins)), bins, rotation=45, ha='right')
+    def analyze_time_series(self) -> Dict[str, float]:
+        """
+        Analyze time-series data for performance metrics.
 
-        # Add custom title and labels with enhanced styling
-        plt.title('Blackjack Session Results: Bankroll Distribution', 
-                 fontsize=14, pad=20, weight='bold')
-        plt.xlabel('Final Bankroll Range', fontsize=12, labelpad=10)
-        plt.ylabel('Number of Sessions', fontsize=12, labelpad=10)
+        Returns:
+            Dictionary containing calculated metrics
+        """
+        metrics = {
+            'max_drawdown': 0.0,
+            'longest_win_streak': 0,
+            'longest_loss_streak': 0,
+            'avg_win_streak': 0.0,
+            'avg_loss_streak': 0.0,
+            'volatility': 0.0
+        }
 
-        # Add count labels on top of bars with improved positioning
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{int(height)}',
-                    ha='center', va='bottom', fontsize=10)
+        if not self.all_session_histories:
+            return metrics
 
-        # Add reference line for initial bankroll
-        plt.axvline(x=len(bins)/3, color='red', linestyle='--', alpha=0.5,
-                   label=f'Initial Bankroll (${self.initial_bankroll:,.0f})')
+        # Calculate metrics across all sessions
+        for history in self.all_session_histories:
+            if not history:
+                continue
 
-        # Add grid for better readability
-        plt.grid(True, axis='y', linestyle='--', alpha=0.3)
-        plt.legend()
+            # Calculate drawdown
+            peak = history[0]
+            current_drawdown = 0.0
+            for value in history:
+                if value > peak:
+                    peak = value
+                current_drawdown = (peak - value) / peak * 100
+                metrics['max_drawdown'] = max(metrics['max_drawdown'], current_drawdown)
 
-        # Adjust layout and save
-        plt.tight_layout()
-        plt.savefig('bankroll_distribution.png', dpi=300, bbox_inches='tight')
-        plt.close()
+            # Calculate streaks
+            current_streak = 0
+            current_sign = 0
+            win_streaks = []
+            loss_streaks = []
 
-    def plot_bankroll_histogram(self) -> None:
-        """Create a histogram of final bankrolls with enhanced visualization."""
-        plt.figure(figsize=(12, 6))
-        plt.style.use('default')  # Use default style instead of seaborn
+            for i in range(1, len(history)):
+                diff = history[i] - history[i-1]
+                if diff > 0:  # Win
+                    if current_sign <= 0:  # New streak
+                        if current_sign < 0:
+                            loss_streaks.append(-current_streak)
+                        current_streak = 1
+                        current_sign = 1
+                    else:
+                        current_streak += 1
+                elif diff < 0:  # Loss
+                    if current_sign >= 0:  # New streak
+                        if current_sign > 0:
+                            win_streaks.append(current_streak)
+                        current_streak = 1
+                        current_sign = -1
+                    else:
+                        current_streak += 1
 
-        # Create histogram with enhanced styling
-        n, bins, patches = plt.hist(self.session_results, bins=20, 
-                                  color='lightgreen', edgecolor='darkgreen', 
-                                  alpha=0.7, density=True)
+            # Add final streak
+            if current_sign > 0:
+                win_streaks.append(current_streak)
+            elif current_sign < 0:
+                loss_streaks.append(-current_streak)
 
-        # Add mean and median lines
-        mean_bankroll = sum(self.session_results) / len(self.session_results)
-        median_bankroll = sorted(self.session_results)[len(self.session_results)//2]
+            # Update streak metrics
+            if win_streaks:
+                metrics['longest_win_streak'] = max(metrics['longest_win_streak'], max(win_streaks))
+                metrics['avg_win_streak'] = sum(win_streaks) / len(win_streaks)
+            if loss_streaks:
+                metrics['longest_loss_streak'] = max(metrics['longest_loss_streak'], -min(loss_streaks))
+                metrics['avg_loss_streak'] = sum(abs(x) for x in loss_streaks) / len(loss_streaks)
 
-        plt.axvline(mean_bankroll, color='red', linestyle='--', 
-                   label=f'Mean (${mean_bankroll:,.2f})', linewidth=2)
-        plt.axvline(median_bankroll, color='blue', linestyle='--',
-                   label=f'Median (${median_bankroll:,.2f})', linewidth=2)
-        plt.axvline(self.initial_bankroll, color='green', linestyle='--',
-                   label=f'Initial (${self.initial_bankroll:,.2f})', linewidth=2)
+            # Calculate volatility (standard deviation of returns)
+            returns = [(history[i] - history[i-1]) / history[i-1] * 100 for i in range(1, len(history))]
+            if returns:
+                metrics['volatility'] = sum(abs(r) for r in returns) / len(returns)  # Average absolute return
 
-        # Enhanced title and labels
-        plt.title('Distribution of Final Bankrolls Across Sessions',
-                 fontsize=14, pad=20, weight='bold')
-        plt.xlabel('Final Bankroll ($)', fontsize=12, labelpad=10)
-        plt.ylabel('Density', fontsize=12, labelpad=10)
+        return metrics
 
-        # Add grid and legend with improved styling
-        plt.grid(True, linestyle='--', alpha=0.3)
-        plt.legend(fontsize=10, loc='upper right')
+    def export_session_data(self, filename: str = None) -> None:
+        """
+        Export session data to CSV file for external analysis.
 
-        # Adjust layout and save with high resolution
-        plt.tight_layout()
-        plt.savefig('bankroll_histogram.png', dpi=300, bbox_inches='tight')
-        plt.close()
+        Args:
+            filename: Optional custom filename, defaults to timestamp-based name
+        """
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"blackjack_session_data_{timestamp}.csv"
+
+        with open(filename, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+
+            # Write header
+            writer.writerow(['Session', 'Hand', 'Bankroll'])
+
+            # Write data for each session
+            for session_idx, history in enumerate(self.all_session_histories, 1):
+                for hand_idx, bankroll in enumerate(history, 1):
+                    writer.writerow([session_idx, hand_idx, f"{bankroll:.2f}"])
 
     def print_results(self) -> None:
-        """Print comprehensive statistics across all sessions and generate visualizations."""
+        """Print comprehensive statistics across all sessions."""
         print("\nMulti-Session Simulation Results")
         print("=" * 60)
 
@@ -168,6 +211,16 @@ class SessionStatistics:
             percentage = (count / self.completed_sessions * 100)
             print(f"  {bin_range}: {count:3d} sessions ({percentage:.1f}%)")
 
+        # Time-series analysis
+        metrics = self.analyze_time_series()
+        print("\nTime-Series Analysis:")
+        print(f"  Maximum Drawdown:     {metrics['max_drawdown']:.1f}%")
+        print(f"  Longest Win Streak:   {metrics['longest_win_streak']} hands")
+        print(f"  Longest Loss Streak:  {metrics['longest_loss_streak']} hands")
+        print(f"  Average Win Streak:   {metrics['avg_win_streak']:.1f} hands")
+        print(f"  Average Loss Streak:  {metrics['avg_loss_streak']:.1f} hands")
+        print(f"  Bankroll Volatility:  {metrics['volatility']:.1f}%")
+
         # Summary statistics
         if self.session_results:
             avg_final = sum(self.session_results) / len(self.session_results)
@@ -176,9 +229,6 @@ class SessionStatistics:
             print(f"  Best Session Result:    ${max(self.session_results):,.2f}")
             print(f"  Worst Session Result:   ${min(self.session_results):,.2f}")
 
-        # Generate visualizations
-        self.plot_bankroll_distribution()
-        self.plot_bankroll_histogram()
-        print("\nVisualization files generated:")
-        print("  - bankroll_distribution.png")
-        print("  - bankroll_histogram.png")
+        # Export session data
+        self.export_session_data()
+        print("\nSession data exported to CSV file.")

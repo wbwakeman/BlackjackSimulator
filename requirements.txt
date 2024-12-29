@@ -8,3 +8,6 @@ matplotlib
 matplotlib
 matplotlib
 seaborn
+numpy
+matplotlib
+trafilatura
