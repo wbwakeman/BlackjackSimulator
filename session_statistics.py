@@ -33,14 +33,11 @@ class SessionStatistics:
         # Ensure logs directory exists
         os.makedirs('logs', exist_ok=True)
 
-        # Create bins with initial bankroll as a delimiter
+        # Create evenly spaced bins from 0 to 300% of initial bankroll
         bin_size = self.initial_bankroll * 0.4  # Create bins of 40% of initial bankroll
         max_bin = self.initial_bankroll * 3     # Track up to 300% of initial bankroll
 
-        # Start with 0 to initial_bankroll bin
-        self.bankroll_bins[f"$0-${self.initial_bankroll:,.0f}"] = 0
-
-        current = self.initial_bankroll
+        current = 0
         while current < max_bin:
             next_level = min(current + bin_size, max_bin)
             bin_label = f"${current:,.0f}-${next_level:,.0f}"
@@ -293,6 +290,13 @@ class SessionStatistics:
         print(f"Total Sessions: {self.completed_sessions}")
         print(f"Initial Bankroll: ${self.initial_bankroll:,.2f}")
         print(f"Hands per Session: {self.num_hands_per_session}")
+
+        # Performance relative to initial bankroll
+        sessions_above_initial = sum(1 for result in self.session_results if result > self.initial_bankroll)
+        sessions_below_initial = sum(1 for result in self.session_results if result < self.initial_bankroll)
+        print("\nPerformance vs Initial Bankroll:")
+        print(f"  Sessions Above Initial: {sessions_above_initial} ({sessions_above_initial/self.completed_sessions*100:.1f}%)")
+        print(f"  Sessions Below Initial: {sessions_below_initial} ({sessions_below_initial/self.completed_sessions*100:.1f}%)")
 
         # Bankruptcy and doubling rates
         print("\nSession Outcomes:")
