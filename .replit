@@ -47,6 +47,14 @@ args = "Test Statistics"
 task = "workflow.run"
 args = "CSV Export Test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Test Simulation"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Verify Configuration"
+
 [[workflows.workflow]]
 name = "Blackjack Simulation"
 author = "agent"
@@ -158,3 +166,31 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python blackjack_sim.py --num_sessions 3 --num_hands 50 --starting_stake 1000 --standard_bet 10 --verbose"
+
+[[workflows.workflow]]
+name = "Test Simulation"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 3 --num_hands 50 --starting_stake 1000 --standard_bet 10 --verbose"
+
+[[workflows.workflow]]
+name = "Verify Configuration"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 3 --num_hands 50 --starting_stake 1000 --standard_bet 10 --verbose --ruleset wcent"

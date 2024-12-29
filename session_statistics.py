@@ -33,11 +33,19 @@ class SessionStatistics:
         # Ensure logs directory exists
         os.makedirs('logs', exist_ok=True)
 
-        # Create evenly spaced bins from 0 to 300% of initial bankroll
+        # Create bins with initial bankroll as a key boundary
         bin_size = self.initial_bankroll * 0.4  # Create bins of 40% of initial bankroll
         max_bin = self.initial_bankroll * 3     # Track up to 300% of initial bankroll
 
+        # Start with bins below initial bankroll
         current = 0
+        while current < self.initial_bankroll:
+            next_level = min(current + bin_size, self.initial_bankroll)
+            bin_label = f"${current:,.0f}-${next_level:,.0f}"
+            self.bankroll_bins[bin_label] = 0
+            current = next_level
+
+        # Add bins above initial bankroll
         while current < max_bin:
             next_level = min(current + bin_size, max_bin)
             bin_label = f"${current:,.0f}-${next_level:,.0f}"
