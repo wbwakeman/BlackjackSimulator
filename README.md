@@ -4,29 +4,21 @@ A sophisticated blackjack simulation program featuring configurable game rules, 
 
 ## Features
 
-- **Configurable Game Rules Engine**
-  - Multiple casino rule profiles (Vegas Strip, Downtown Vegas, Single Deck, Atlantic City, European)
-  - Customizable deck count, blackjack payouts, and splitting rules
-  - Parameter validation and inheritance framework
+### Game Engine
+- Multiple casino rule profiles (Vegas Strip, Downtown Vegas, Single Deck, Atlantic City, European)
+- Configurable deck count, blackjack payouts, and splitting rules
+- Split hand management with double-after-split support
+- Strategy engine for split and double-down decisions
+- Debug logging system
 
-- **Multi-Session Analysis**
-  - Comprehensive session statistics tracking
-  - Bankroll distribution analysis
-  - Time-series progression metrics
-  - CSV export functionality
-
-- **Advanced Game Features**
-  - Split hand management with double-after-split support
-  - Strategy engine for split and double-down decisions
-  - Debug logging system
-
-## Installation
-
-```bash
-git clone [repository-url]
-cd blackjack-simulator
-pip install -r requirements.txt
-```
+### Analysis Features
+- Multi-session statistics tracking
+- Bankroll distribution analysis
+- Time-series progression metrics
+- CSV export functionality
+- Maximum drawdown tracking
+- Win/loss streak analysis
+- Volatility measurements
 
 ## Usage
 
@@ -93,6 +85,7 @@ The program tracks and analyzes various metrics across sessions:
    - High/low watermarks
 
 ### Sample Output
+From verified test runs:
 
 ```
 Multi-Session Simulation Results
@@ -106,20 +99,21 @@ Session Outcomes:
   Doubling Rate:   0.0% (0 sessions)
 
 Final Bankroll Distribution:
-  $800-$1,200:   5 sessions (100.0%)
+  $400-$800:   2 sessions (40.0%)
+  $800-$1,200:   3 sessions (60.0%)
 
 Time-Series Analysis:
-  Maximum Drawdown:     14.4%
-  Longest Win Streak:   9 hands
-  Longest Loss Streak:  6 hands
-  Average Win Streak:   1.6 hands
-  Average Loss Streak:  1.8 hands
-  Bankroll Volatility:  0.9%
+  Maximum Drawdown:     38.0%
+  Longest Win Streak:   6 hands
+  Longest Loss Streak:  9 hands
+  Average Win Streak:   1.5 hands
+  Average Loss Streak:  3.1 hands
+  Bankroll Volatility:  1.4%
 
 Summary Statistics:
-  Average Final Bankroll: $1,041.00
-  Best Session Result:    $1,165.00
-  Worst Session Result:   $865.00
+  Average Final Bankroll: $930.00
+  Best Session Result:    $1,080.00
+  Worst Session Result:   $690.00
 ```
 
 ### Data Export

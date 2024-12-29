@@ -169,24 +169,113 @@ class SessionStatistics:
     def export_session_data(self, filename: str = None) -> None:
         """
         Export session data to CSV file for external analysis.
+        Creates two CSV files:
+        1. Session-level summary with aggregate statistics
+        2. Hand-by-hand progression of bankroll
 
         Args:
-            filename: Optional custom filename, defaults to timestamp-based name
+            filename: Optional custom filename prefix, defaults to timestamp-based name
+
+        Files created:
+            {prefix}_summary.csv - Aggregate session statistics
+            {prefix}_hands.csv - Detailed hand-by-hand data
         """
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"blackjack_session_data_{timestamp}.csv"
+        try:
+            # Generate timestamp-based prefix if none provided
+            if filename is None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                prefix = f"blackjack_session_data_{timestamp}"
+            else:
+                prefix = filename.replace('.csv', '')
 
-        with open(filename, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
+            # Export detailed hand-by-hand data
+            hands_file = f"{prefix}_hands.csv"
+            with open(hands_file, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
 
-            # Write header
-            writer.writerow(['Session', 'Hand', 'Bankroll'])
+                # Write header
+                writer.writerow(['Session', 'Hand', 'Bankroll', 'Change'])
 
-            # Write data for each session
-            for session_idx, history in enumerate(self.all_session_histories, 1):
-                for hand_idx, bankroll in enumerate(history, 1):
-                    writer.writerow([session_idx, hand_idx, f"{bankroll:.2f}"])
+                # Write data for each session
+                for session_idx, history in enumerate(self.all_session_histories, 1):
+                    prev_bankroll = self.initial_bankroll
+                    for hand_idx, bankroll in enumerate(history, 1):
+                        change = bankroll - prev_bankroll
+                        writer.writerow([
+                            session_idx,
+                            hand_idx,
+                            f"{bankroll:.2f}",
+                            f"{change:+.2f}"
+                        ])
+                        prev_bankroll = bankroll
+
+            # Export session summary data
+            summary_file = f"{prefix}_summary.csv"
+            with open(summary_file, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+
+                # Write headers for summary data
+                writer.writerow([
+                    'Session',
+                    'Final Bankroll',
+                    'Net Profit/Loss',
+                    'Peak Bankroll',
+                    'Maximum Drawdown',
+                    'Win Streak',
+                    'Loss Streak'
+                ])
+
+                # Calculate and write summary data for each session
+                for session_idx, history in enumerate(self.all_session_histories, 1):
+                    if history:
+                        final_bankroll = history[-1]
+                        net_change = final_bankroll - self.initial_bankroll
+                        peak = max(history)
+
+                        # Calculate max drawdown for this session
+                        max_drawdown = 0
+                        peak_so_far = history[0]
+                        for value in history:
+                            if value > peak_so_far:
+                                peak_so_far = value
+                            drawdown = (peak_so_far - value) / peak_so_far * 100
+                            max_drawdown = max(max_drawdown, drawdown)
+
+                        # Calculate streaks
+                        current_streak = 0
+                        max_win_streak = 0
+                        max_loss_streak = 0
+                        for i in range(1, len(history)):
+                            if history[i] > history[i-1]:  # Win
+                                if current_streak > 0:
+                                    current_streak += 1
+                                else:
+                                    current_streak = 1
+                                max_win_streak = max(max_win_streak, current_streak)
+                            elif history[i] < history[i-1]:  # Loss
+                                if current_streak < 0:
+                                    current_streak -= 1
+                                else:
+                                    current_streak = -1
+                                max_loss_streak = max(max_loss_streak, -current_streak)
+
+                        writer.writerow([
+                            session_idx,
+                            f"{final_bankroll:.2f}",
+                            f"{net_change:+.2f}",
+                            f"{peak:.2f}",
+                            f"{max_drawdown:.1f}%",
+                            max_win_streak,
+                            max_loss_streak
+                        ])
+
+        except IOError as e:
+            print(f"\nError exporting session data: {str(e)}")
+            return
+
+        print(f"\nSession data exported to:")
+        print(f"  Hand details: {hands_file}")
+        print(f"  Session summary: {summary_file}")
 
     def print_results(self) -> None:
         """Print comprehensive statistics across all sessions."""
