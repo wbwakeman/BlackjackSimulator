@@ -1,0 +1,50 @@
+Basic Rules of Blackjack
+1.	Objective: The goal is to have a hand value closer to 21 than the dealer's hand without exceeding 21.
+2.	Card Values:
+o	Number cards (2-10) are worth their face value.
+o	Face cards (J, Q, K) are worth 10.
+o	Aces can be worth 1 or 11, whichever is more beneficial for the player.
+Initial Deal
+1.	Each player and the dealer are dealt two cards.
+2.	One of the dealer's cards is dealt face-up (the "up card"), and the other is face-down (the "hole card").
+Player Actions
+1.	Hit: The player takes an additional card.
+2.	Stand: The player takes no more cards and ends their turn.
+3.	Double: The player doubles their initial bet, takes exactly one more card, and then stands.
+4.	Split: If the player has two cards of the same rank, they can split them into two separate hands, each with its own bet. Each hand is then played to completion.
+o	Special Case for Aces: When splitting Aces, the player receives only one additional card for each Ace and cannot hit further.
+o	Re-splitting: If the player draws another identical card after splitting, they have the option to split again.
+5.	Surrender: The player forfeits half of their bet and ends their turn. This action is only available on the initial two cards.
+Dealer Actions
+1.	The dealer must hit until their hand value is 17 or higher.
+2.	Soft 17: If the dealer has a "soft 17" (a hand containing an Ace valued as 11, e.g., Ace and 6), the dealer's action depends on the rules configuration:
+o	The dealer may hit or stand on soft 17 based on the configured rules.
+Game Outcomes
+1.	Blackjack: If the player or dealer has an Ace and a 10-value card as their initial two cards, it is a Blackjack.
+o	If both the player and dealer have Blackjack, it is a tie (push).
+o	If only the player has Blackjack, the player wins.
+o	If only the dealer has Blackjack, the player loses.
+2.	Bust: If the player's hand value exceeds 21, they bust and lose immediately.
+3.	Comparison: If neither the player nor the dealer busts, the hands are compared:
+o	The hand with the value closer to 21 wins.
+o	If the hand values are equal, it is a tie (push).
+Special Rules Implemented
+1.	Double: The player receives exactly one more card and then stands.
+2.	Split: The player can split pairs into separate hands and play each hand to completion.
+o	Special handling for splitting Aces.
+o	Re-splitting is allowed if the player draws another identical card.
+o Unless the house rules prohibit it, a player can Double after splitting cards (except Aces).
+3.	Surrender: The player can surrender on the initial two cards, forfeiting half of their bet.
+Debugging and Output
+1.	The program prints the initial hands, actions taken, and the final hands with results.
+2.	Periodic reporting of the number of wins, losses, ties, and blackjacks after every 100 hands.
+Example Output
+Initial player hand: [5 of Clubs, 7 of Diamonds], dealer hand: [10 of Clubs, Q of Clubs]
+Player hand: 12, Dealer card: T, Action: H, Row: 8, Column: 10
+Player hits: [5 of Clubs, 7 of Diamonds, 3 of Diamonds]
+Player hand: 15, Dealer card: T, Action: H, Row: 12, Column: 10
+Player hits: [5 of Clubs, 7 of Diamonds, 3 of Diamonds, 5 of Spades]
+Player hand: 20, Dealer card: T, Action: S, Row: 18, Column: 10
+Dealer hits: [10 of Clubs, Q of Clubs, 9 of Hearts]
+Dealer busts with hand: [10 of Clubs, Q of Clubs, 9 of Hearts]
+Final player hands: [[5 of Clubs, 7 of Diamonds, 3 of Diamonds, 5 of Spades]], dealer hand: [10 of Clubs, Q of Clubs, 9 of Hearts] (29), Result: W
