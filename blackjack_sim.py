@@ -6,7 +6,6 @@ from game_config import GameConfig
 from statistics import Statistics
 from session_statistics import SessionStatistics
 
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Blackjack Simulation Program')
@@ -73,13 +72,14 @@ def parse_args():
     return args
 
 
-def run_single_session(config: GameConfig, args) -> float:
+def run_single_session(config: GameConfig, args, session_stats: SessionStatistics) -> float:
     """
     Run a single session of blackjack and return the final bankroll.
 
     Args:
         config: Game configuration
         args: Command line arguments
+        session_stats: Session statistics tracker
 
     Returns:
         float: Final bankroll amount
@@ -217,7 +217,7 @@ def main():
             print(f"\nStarting Session {session + 1}/{args.num_sessions}")
             print("-" * 60)
 
-        final_bankroll = run_single_session(config, args)
+        final_bankroll = run_single_session(config, args, session_stats)
         session_stats.update_session(final_bankroll)
 
         if args.verbose:
