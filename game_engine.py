@@ -56,9 +56,16 @@ class BlackjackGame:
         
         # Import and load test scenarios
         from test_scenarios import TestScenarios
-        test_sequence = TestScenarios.get_scenario(self.config.test_scenario if hasattr(self.config, 'test_scenario') else None)
-        self.deck.cards = test_sequence
-        self.deck.is_test_deck = True  # Mark as test deck to prevent reset/shuffle
+        if hasattr(self.config, 'test_scenario') and self.config.test_scenario:
+            test_sequence = TestScenarios.get_scenario(self.config.test_scenario)
+            if test_sequence:
+                self.deck.cards = test_sequence
+                self.deck.is_test_deck = True  # Mark as test deck to prevent reset/shuffle
+                if self.config.verbose_logging:
+                    print(f"\nLoaded test scenario: {self.config.test_scenario}")
+                    print("Test deck sequence:")
+                    for i, card in enumerate(test_sequence):
+                        print(f"  Position {i+1}: {card}")
         if self.config.verbose_logging:
             print("\nDEBUG - Test deck setup for 8,8 vs 6:")
             for i, card in enumerate(self.deck.cards):

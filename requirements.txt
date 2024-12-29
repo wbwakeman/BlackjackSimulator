@@ -11,3 +11,6 @@ seaborn
 numpy
 matplotlib
 trafilatura
+scipy
+scipy
+scipy
