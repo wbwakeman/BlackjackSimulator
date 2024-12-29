@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass, field
 from typing import List, Dict
+import matplotlib.pyplot as plt
 
 @dataclass
 class SessionStatistics:
@@ -67,8 +68,53 @@ class SessionStatistics:
                     self.bankroll_bins[bin_range] += 1
                     break
 
+    def plot_bankroll_distribution(self) -> None:
+        """Create a visual representation of the bankroll distribution."""
+        plt.figure(figsize=(12, 6))
+
+        # Extract bin ranges and counts
+        bins = list(self.bankroll_bins.keys())
+        counts = list(self.bankroll_bins.values())
+
+        # Create bar plot
+        plt.bar(range(len(bins)), counts)
+        plt.xticks(range(len(bins)), bins, rotation=45)
+
+        # Customize plot
+        plt.title('Distribution of Final Bankrolls Across Sessions')
+        plt.xlabel('Bankroll Range')
+        plt.ylabel('Number of Sessions')
+
+        # Add count labels on top of bars
+        for i, count in enumerate(counts):
+            plt.text(i, count, str(count), ha='center', va='bottom')
+
+        plt.tight_layout()
+        plt.savefig('bankroll_distribution.png')
+        plt.close()
+
+    def plot_bankroll_histogram(self) -> None:
+        """Create a histogram of final bankrolls."""
+        plt.figure(figsize=(10, 6))
+
+        plt.hist(self.session_results, bins=20, edgecolor='black')
+        plt.title('Histogram of Final Bankrolls')
+        plt.xlabel('Final Bankroll ($)')
+        plt.ylabel('Frequency')
+
+        # Add vertical lines for key values
+        plt.axvline(self.initial_bankroll, color='r', linestyle='--', 
+                   label='Initial Bankroll')
+        plt.axvline(self.initial_bankroll * 2, color='g', linestyle='--', 
+                   label='Double Initial')
+
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig('bankroll_histogram.png')
+        plt.close()
+
     def print_results(self) -> None:
-        """Print comprehensive statistics across all sessions."""
+        """Print comprehensive statistics across all sessions and generate visualizations."""
         print("\nMulti-Session Simulation Results")
         print("=" * 60)
 
@@ -97,3 +143,10 @@ class SessionStatistics:
             print(f"  Average Final Bankroll: ${avg_final:,.2f}")
             print(f"  Best Session Result:    ${max(self.session_results):,.2f}")
             print(f"  Worst Session Result:   ${min(self.session_results):,.2f}")
+
+        # Generate visualizations
+        self.plot_bankroll_distribution()
+        self.plot_bankroll_histogram()
+        print("\nVisualization files generated:")
+        print("  - bankroll_distribution.png")
+        print("  - bankroll_histogram.png")
