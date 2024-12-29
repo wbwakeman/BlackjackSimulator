@@ -6,3 +6,47 @@ run = ["sh", "-c", "python blackjack_sim.py --num_hands 100 --starting_stake 100
 
 [nix]
 channel = "stable-24_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Blackjack Simulation"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Test Multi-Session"
+
+[[workflows.workflow]]
+name = "Blackjack Simulation"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 10 --verbose"
+
+[[workflows.workflow]]
+name = "Test Multi-Session"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 3 --num_hands 50 --starting_stake 1000 --standard_bet 10"
