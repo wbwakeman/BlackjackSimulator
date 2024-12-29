@@ -36,7 +36,7 @@ class SessionStatistics:
         # Create bins with initial bankroll as the central boundary
         bin_size = self.initial_bankroll * 0.2  # Create bins of 20% of initial bankroll
         lowest_bin = 0
-        highest_bin = self.initial_bankroll * 3  # Track up to 300% of initial bankroll
+        highest_bin = self.initial_bankroll * 2  # Track up to 200% of initial bankroll
 
         # Start with bins below initial bankroll
         current = lowest_bin
