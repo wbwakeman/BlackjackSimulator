@@ -1,5 +1,7 @@
-{pkgs}: {
+
+{ pkgs }: {
   deps = [
-    pkgs.vimHugeX
+    pkgs.python3
+    pkgs.python3Packages.pip
   ];
 }
