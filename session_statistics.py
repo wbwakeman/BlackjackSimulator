@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Optional
 import csv
 from datetime import datetime
 import os
+import math
+import statistics as stats_lib  # Renamed to avoid collision with local statistics.py
+from scipy import stats
 
 @dataclass
 class SessionStatistics:
@@ -14,6 +17,7 @@ class SessionStatistics:
     initial_bankroll: float
     num_sessions: int
     num_hands_per_session: int
+    quad_bins_threshold: Optional[float] = None  # New parameter for quad-bins feature
 
     # Session outcome counters
     bankrupt_sessions: int = 0  # Sessions ending at $0
@@ -23,6 +27,12 @@ class SessionStatistics:
     # Bankroll distribution tracking
     bankroll_bins: Dict[str, int] = field(default_factory=dict)
     session_results: List[float] = field(default_factory=list)
+    quad_bins: Dict[str, List[float]] = field(default_factory=lambda: {
+        'below_threshold': [],
+        'below_initial': [],
+        'above_initial': [],
+        'above_threshold': []
+    })
 
     # Time series tracking
     current_session_history: List[float] = field(default_factory=list)
@@ -33,7 +43,12 @@ class SessionStatistics:
         # Ensure logs directory exists
         os.makedirs('logs', exist_ok=True)
 
-        # Create bins with initial bankroll as the central boundary
+        if self.quad_bins_threshold is not None:
+            if not 0.0 <= self.quad_bins_threshold <= 1.0:
+                raise ValueError("quad_bins_threshold must be between 0.0 and 1.0")
+            return  # Skip regular bin creation when using quad bins
+
+        # Create regular bins with initial bankroll as the central boundary
         bin_size = self.initial_bankroll * 0.2  # Create bins of 20% of initial bankroll
         lowest_bin = 0
         highest_bin = self.initial_bankroll * 2  # Track up to 200% of initial bankroll
@@ -78,20 +93,198 @@ class SessionStatistics:
         elif final_bankroll >= (self.initial_bankroll * 2):
             self.doubled_sessions += 1
 
-        # Update bankroll distribution bins
-        for bin_range, _ in self.bankroll_bins.items():
-            if bin_range.startswith('>'): # Handle the overflow bin
-                threshold = float(bin_range[1:].replace('$', '').replace(',', ''))
-                if final_bankroll > threshold:
-                    self.bankroll_bins[bin_range] += 1
-                    break
+        if self.quad_bins_threshold is not None:
+            # Update quad bins
+            threshold = self.quad_bins_threshold
+            lower_threshold = self.initial_bankroll * (1 - threshold)
+            upper_threshold = self.initial_bankroll * (1 + threshold)
+
+            if final_bankroll < lower_threshold:
+                self.quad_bins['below_threshold'].append(final_bankroll)
+            elif final_bankroll < self.initial_bankroll:
+                self.quad_bins['below_initial'].append(final_bankroll)
+            elif final_bankroll <= upper_threshold:
+                self.quad_bins['above_initial'].append(final_bankroll)
             else:
-                # Extract range values
-                low, high = map(lambda x: float(x.replace('$', '').replace(',', '')), 
-                              bin_range.split('-'))
-                if low <= final_bankroll <= high:
-                    self.bankroll_bins[bin_range] += 1
-                    break
+                self.quad_bins['above_threshold'].append(final_bankroll)
+        else:
+            # Update regular bankroll distribution bins
+            for bin_range, _ in self.bankroll_bins.items():
+                if bin_range.startswith('>'): # Handle the overflow bin
+                    threshold = float(bin_range[1:].replace('$', '').replace(',', ''))
+                    if final_bankroll > threshold:
+                        self.bankroll_bins[bin_range] += 1
+                        break
+                else:
+                    # Extract range values
+                    low, high = map(lambda x: float(x.replace('$', '').replace(',', '')), 
+                                bin_range.split('-'))
+                    if low <= final_bankroll <= high:
+                        self.bankroll_bins[bin_range] += 1
+                        break
+
+    def _generate_ascii_histogram(self, bin_data: Dict[str, int], max_width: int = 40) -> str:
+        """Generate ASCII histogram visualization"""
+        if not bin_data:
+            return "No data available for histogram"
+
+        max_count = max(bin_data.values())
+        scale = max_width / (max_count if max_count > 0 else 1)
+
+        histogram = []
+        for label, count in bin_data.items():
+            bar_width = int(count * scale)
+            bar = '█' * bar_width
+            histogram.append(f"{label:<20} | {bar} ({count})")
+
+        return '\n'.join(histogram)
+
+    def _calculate_quad_bins_stats(self) -> Dict[str, Dict[str, float]]:
+        """Calculate statistical metrics for quad bins"""
+        stats_data = {}
+
+        for bin_name, values in self.quad_bins.items():
+            if values:
+                stats_data[bin_name] = {
+                    'count': len(values),
+                    'mean': stats_lib.mean(values) if values else 0,
+                    'std': stats_lib.stdev(values) if len(values) > 1 else 0,
+                    'percentage': (len(values) / self.completed_sessions * 100)
+                }
+            else:
+                stats_data[bin_name] = {
+                    'count': 0,
+                    'mean': 0,
+                    'std': 0,
+                    'percentage': 0
+                }
+
+        return stats_data
+
+    def _perform_statistical_tests(self) -> Dict[str, float]:
+        """Perform statistical significance tests between bins"""
+        test_results = {}
+
+        # Perform Mann-Whitney U test between adjacent bins
+        bin_pairs = [
+            ('below_threshold', 'below_initial'),
+            ('below_initial', 'above_initial'),
+            ('above_initial', 'above_threshold')
+        ]
+
+        for bin1, bin2 in bin_pairs:
+            if (len(self.quad_bins[bin1]) > 0 and 
+                len(self.quad_bins[bin2]) > 0):
+                statistic, pvalue = stats.mannwhitneyu(
+                    self.quad_bins[bin1],
+                    self.quad_bins[bin2],
+                    alternative='two-sided'
+                )
+                test_results[f'{bin1}_vs_{bin2}'] = pvalue
+            else:
+                test_results[f'{bin1}_vs_{bin2}'] = None
+
+        return test_results
+
+    def print_quad_bins_analysis(self) -> None:
+        """Print quad-bins analysis with ASCII visualization"""
+        if self.quad_bins_threshold is None:
+            return
+
+        threshold = self.quad_bins_threshold
+        lower_threshold = self.initial_bankroll * (1 - threshold)
+        upper_threshold = self.initial_bankroll * (1 + threshold)
+
+        print(f"\nQuad-Bins Analysis (threshold: {threshold*100:.1f}%)")
+        print("=" * 60)
+
+        # Calculate statistics
+        stats = self._calculate_quad_bins_stats()
+
+        # Prepare histogram data
+        hist_data = {
+            f"< ${lower_threshold:,.2f}": len(self.quad_bins['below_threshold']),
+            f"${lower_threshold:,.2f}-${self.initial_bankroll:,.2f}": len(self.quad_bins['below_initial']),
+            f"${self.initial_bankroll:,.2f}-${upper_threshold:,.2f}": len(self.quad_bins['above_initial']),
+            f"> ${upper_threshold:,.2f}": len(self.quad_bins['above_threshold'])
+        }
+
+        # Print ASCII histogram
+        print("\nDistribution:")
+        print(self._generate_ascii_histogram(hist_data))
+
+        # Print detailed statistics
+        print("\nDetailed Statistics:")
+        for bin_name, bin_stats in stats.items():
+            print(f"\n{bin_name.replace('_', ' ').title()}:")
+            print(f"  Count: {bin_stats['count']} ({bin_stats['percentage']:.1f}%)")
+            if bin_stats['count'] > 0:
+                print(f"  Mean: ${bin_stats['mean']:.2f}")
+                print(f"  Std Dev: ${bin_stats['std']:.2f}")
+
+        # Statistical significance tests
+        print("\nStatistical Significance Tests (Mann-Whitney U):")
+        test_results = self._perform_statistical_tests()
+        for test_name, p_value in test_results.items():
+            if p_value is not None:
+                print(f"  {test_name.replace('_', ' ').title()}: p={p_value:.4f}")
+                print(f"  {'Significant' if p_value < 0.05 else 'Not significant'} at α=0.05")
+
+    def print_results(self) -> None:
+        """Print comprehensive statistics across all sessions."""
+        print("\nMulti-Session Simulation Results")
+        print("=" * 60)
+
+        # Basic session statistics
+        print(f"Total Sessions: {self.completed_sessions}")
+        print(f"Initial Bankroll: ${self.initial_bankroll:,.2f}")
+        print(f"Hands per Session: {self.num_hands_per_session}")
+
+        # Performance relative to initial bankroll
+        sessions_above_initial = sum(1 for result in self.session_results if result > self.initial_bankroll)
+        sessions_below_initial = sum(1 for result in self.session_results if result < self.initial_bankroll)
+        print("\nPerformance vs Initial Bankroll:")
+        print(f"  Sessions Above Initial: {sessions_above_initial} ({sessions_above_initial/self.completed_sessions*100:.1f}%)")
+        print(f"  Sessions Below Initial: {sessions_below_initial} ({sessions_below_initial/self.completed_sessions*100:.1f}%)")
+
+        # Bankruptcy and doubling rates
+        print("\nSession Outcomes:")
+        bankruptcy_rate = (self.bankrupt_sessions / self.completed_sessions * 100)
+        doubling_rate = (self.doubled_sessions / self.completed_sessions * 100)
+        print(f"  Bankruptcy Rate: {bankruptcy_rate:.1f}% ({self.bankrupt_sessions} sessions)")
+        print(f"  Doubling Rate:   {doubling_rate:.1f}% ({self.doubled_sessions} sessions)")
+
+        # Print quad-bins analysis if enabled
+        if self.quad_bins_threshold is not None:
+            self.print_quad_bins_analysis()
+        else:
+            # Distribution of final bankrolls (original format)
+            print("\nFinal Bankroll Distribution:")
+            for bin_range, count in self.bankroll_bins.items():
+                percentage = (count / self.completed_sessions * 100)
+                print(f"  {bin_range}: {count:3d} sessions ({percentage:.1f}%)")
+
+        # Time-series analysis
+        metrics = self.analyze_time_series()
+        print("\nTime-Series Analysis:")
+        print(f"  Maximum Drawdown:     {metrics['max_drawdown']:.1f}%")
+        print(f"  Longest Win Streak:   {metrics['longest_win_streak']} hands")
+        print(f"  Longest Loss Streak:  {metrics['longest_loss_streak']} hands")
+        print(f"  Average Win Streak:   {metrics['avg_win_streak']:.1f} hands")
+        print(f"  Average Loss Streak:  {metrics['avg_loss_streak']:.1f} hands")
+        print(f"  Bankroll Volatility:  {metrics['volatility']:.1f}%")
+
+        # Summary statistics
+        if self.session_results:
+            avg_final = sum(self.session_results) / len(self.session_results)
+            print("\nSummary Statistics:")
+            print(f"  Average Final Bankroll: ${avg_final:,.2f}")
+            print(f"  Best Session Result:    ${max(self.session_results):,.2f}")
+            print(f"  Worst Session Result:   ${min(self.session_results):,.2f}")
+
+        # Export session data
+        self.export_session_data()
+        print("\nSession data exported to CSV file.")
 
     def update_hand(self, current_bankroll: float) -> None:
         """
@@ -133,7 +326,8 @@ class SessionStatistics:
                 if value > peak:
                     peak = value
                 current_drawdown = (peak - value) / peak * 100
-                metrics['max_drawdown'] = max(metrics['max_drawdown'], current_drawdown)
+                metrics['max_drawdown'] = max(metrics['max_drawdown'],
+                                            current_drawdown)
 
             # Calculate streaks
             current_streak = 0
@@ -142,7 +336,7 @@ class SessionStatistics:
             loss_streaks = []
 
             for i in range(1, len(history)):
-                diff = history[i] - history[i-1]
+                diff = history[i] - history[i - 1]
                 if diff > 0:  # Win
                     if current_sign <= 0:  # New streak
                         if current_sign < 0:
@@ -168,20 +362,25 @@ class SessionStatistics:
 
             # Update streak metrics
             if win_streaks:
-                metrics['longest_win_streak'] = max(metrics['longest_win_streak'], max(win_streaks))
+                metrics['longest_win_streak'] = max(metrics['longest_win_streak'],
+                                                   max(win_streaks))
                 metrics['avg_win_streak'] = sum(win_streaks) / len(win_streaks)
             if loss_streaks:
-                metrics['longest_loss_streak'] = max(metrics['longest_loss_streak'], -min(loss_streaks))
-                metrics['avg_loss_streak'] = sum(abs(x) for x in loss_streaks) / len(loss_streaks)
+                metrics['longest_loss_streak'] = max(metrics['longest_loss_streak'],
+                                                    -min(loss_streaks))
+                metrics['avg_loss_streak'] = sum(abs(x)
+                                                for x in loss_streaks) / len(loss_streaks)
 
             # Calculate volatility (standard deviation of returns)
-            returns = [(history[i] - history[i-1]) / history[i-1] * 100 for i in range(1, len(history))]
+            returns = [(history[i] - history[i - 1]) / history[i - 1] * 100
+                      for i in range(1, len(history))]
             if returns:
-                metrics['volatility'] = sum(abs(r) for r in returns) / len(returns)  # Average absolute return
+                metrics['volatility'] = sum(abs(r)
+                                           for r in returns) / len(returns)  # Average absolute return
 
         return metrics
 
-    def export_session_data(self, filename: str = None) -> None:
+    def export_session_data(self, filename: Optional[str] = None) -> None:
         """
         Export session data to CSV file for external analysis.
         Creates two CSV files in the logs directory:
@@ -260,13 +459,13 @@ class SessionStatistics:
                         max_win_streak = 0
                         max_loss_streak = 0
                         for i in range(1, len(history)):
-                            if history[i] > history[i-1]:  # Win
+                            if history[i] > history[i - 1]:  # Win
                                 if current_streak > 0:
                                     current_streak += 1
                                 else:
                                     current_streak = 1
                                 max_win_streak = max(max_win_streak, current_streak)
-                            elif history[i] < history[i-1]:  # Loss
+                            elif history[i] < history[i - 1]:  # Loss
                                 if current_streak < 0:
                                     current_streak -= 1
                                 else:
@@ -290,55 +489,3 @@ class SessionStatistics:
         print(f"\nSession data exported to:")
         print(f"  Hand details: {hands_file}")
         print(f"  Session summary: {summary_file}")
-
-    def print_results(self) -> None:
-        """Print comprehensive statistics across all sessions."""
-        print("\nMulti-Session Simulation Results")
-        print("=" * 60)
-
-        # Basic session statistics
-        print(f"Total Sessions: {self.completed_sessions}")
-        print(f"Initial Bankroll: ${self.initial_bankroll:,.2f}")
-        print(f"Hands per Session: {self.num_hands_per_session}")
-
-        # Performance relative to initial bankroll
-        sessions_above_initial = sum(1 for result in self.session_results if result > self.initial_bankroll)
-        sessions_below_initial = sum(1 for result in self.session_results if result < self.initial_bankroll)
-        print("\nPerformance vs Initial Bankroll:")
-        print(f"  Sessions Above Initial: {sessions_above_initial} ({sessions_above_initial/self.completed_sessions*100:.1f}%)")
-        print(f"  Sessions Below Initial: {sessions_below_initial} ({sessions_below_initial/self.completed_sessions*100:.1f}%)")
-
-        # Bankruptcy and doubling rates
-        print("\nSession Outcomes:")
-        bankruptcy_rate = (self.bankrupt_sessions / self.completed_sessions * 100)
-        doubling_rate = (self.doubled_sessions / self.completed_sessions * 100)
-        print(f"  Bankruptcy Rate: {bankruptcy_rate:.1f}% ({self.bankrupt_sessions} sessions)")
-        print(f"  Doubling Rate:   {doubling_rate:.1f}% ({self.doubled_sessions} sessions)")
-
-        # Distribution of final bankrolls
-        print("\nFinal Bankroll Distribution:")
-        for bin_range, count in self.bankroll_bins.items():
-            percentage = (count / self.completed_sessions * 100)
-            print(f"  {bin_range}: {count:3d} sessions ({percentage:.1f}%)")
-
-        # Time-series analysis
-        metrics = self.analyze_time_series()
-        print("\nTime-Series Analysis:")
-        print(f"  Maximum Drawdown:     {metrics['max_drawdown']:.1f}%")
-        print(f"  Longest Win Streak:   {metrics['longest_win_streak']} hands")
-        print(f"  Longest Loss Streak:  {metrics['longest_loss_streak']} hands")
-        print(f"  Average Win Streak:   {metrics['avg_win_streak']:.1f} hands")
-        print(f"  Average Loss Streak:  {metrics['avg_loss_streak']:.1f} hands")
-        print(f"  Bankroll Volatility:  {metrics['volatility']:.1f}%")
-
-        # Summary statistics
-        if self.session_results:
-            avg_final = sum(self.session_results) / len(self.session_results)
-            print("\nSummary Statistics:")
-            print(f"  Average Final Bankroll: ${avg_final:,.2f}")
-            print(f"  Best Session Result:    ${max(self.session_results):,.2f}")
-            print(f"  Worst Session Result:   ${min(self.session_results):,.2f}")
-
-        # Export session data
-        self.export_session_data()
-        print("\nSession data exported to CSV file.")
