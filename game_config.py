@@ -264,3 +264,17 @@ class GameConfig:
             allow_resplit_aces=False,  # Cannot resplit aces
             double_after_split=False   # Cannot double after splitting
         )
+
+    @classmethod
+    def wcent(cls) -> 'GameConfig':
+        """Wcent casino rules"""
+        return cls(
+            dealer_hits_soft_17=True,   # Dealer hits on soft 17 (modified for consistency)
+            num_decks=4,               # Four deck game
+            allow_surrender=False,      # No surrender allowed
+            blackjack_payout=2.0,      # 2:1 payout for blackjack
+            max_splits=3,              # Can split up to 3 times
+            allow_resplit_aces=True,  # Can resplit aces
+            double_after_split=True,   # Can double after splitting
+            verbose_logging=False      # Standard: No verbose logging by default
+        )

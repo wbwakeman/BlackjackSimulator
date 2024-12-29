@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 import csv
 from datetime import datetime
+import os
 
 @dataclass
 class SessionStatistics:
@@ -29,10 +30,17 @@ class SessionStatistics:
 
     def __post_init__(self):
         """Initialize bankroll bins based on initial bankroll"""
+        # Ensure logs directory exists
+        os.makedirs('logs', exist_ok=True)
+
+        # Create bins with initial bankroll as a delimiter
         bin_size = self.initial_bankroll * 0.4  # Create bins of 40% of initial bankroll
         max_bin = self.initial_bankroll * 3     # Track up to 300% of initial bankroll
 
-        current = 0
+        # Start with 0 to initial_bankroll bin
+        self.bankroll_bins[f"$0-${self.initial_bankroll:,.0f}"] = 0
+
+        current = self.initial_bankroll
         while current < max_bin:
             next_level = min(current + bin_size, max_bin)
             bin_label = f"${current:,.0f}-${next_level:,.0f}"
@@ -169,16 +177,12 @@ class SessionStatistics:
     def export_session_data(self, filename: str = None) -> None:
         """
         Export session data to CSV file for external analysis.
-        Creates two CSV files:
+        Creates two CSV files in the logs directory:
         1. Session-level summary with aggregate statistics
         2. Hand-by-hand progression of bankroll
 
         Args:
             filename: Optional custom filename prefix, defaults to timestamp-based name
-
-        Files created:
-            {prefix}_summary.csv - Aggregate session statistics
-            {prefix}_hands.csv - Detailed hand-by-hand data
         """
         try:
             # Generate timestamp-based prefix if none provided
@@ -188,8 +192,11 @@ class SessionStatistics:
             else:
                 prefix = filename.replace('.csv', '')
 
-            # Export detailed hand-by-hand data
-            hands_file = f"{prefix}_hands.csv"
+            # Ensure logs directory exists
+            os.makedirs('logs', exist_ok=True)
+
+            # Export detailed hand-by-hand data to logs directory
+            hands_file = os.path.join('logs', f"{prefix}_hands.csv")
             with open(hands_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
 
@@ -209,8 +216,8 @@ class SessionStatistics:
                         ])
                         prev_bankroll = bankroll
 
-            # Export session summary data
-            summary_file = f"{prefix}_summary.csv"
+            # Export session summary data to logs directory
+            summary_file = os.path.join('logs', f"{prefix}_summary.csv")
             with open(summary_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
 
