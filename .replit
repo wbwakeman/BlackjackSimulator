@@ -71,7 +71,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --verbose"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 10 --verbose"
 
 [[workflows.workflow]]
 name = "Verify Documentation"
