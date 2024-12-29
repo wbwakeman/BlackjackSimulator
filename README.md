@@ -1,1 +1,1 @@
-python blackjack_sim.py
+python blackjack_sim.py --num_hands 100 --starting_stake 1000 --standard_bet 10

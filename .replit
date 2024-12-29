@@ -23,6 +23,14 @@ args = "Blackjack Simulation"
 task = "workflow.run"
 args = "Test Multi-Session"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Verify README Example"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Verify Documentation"
+
 [[workflows.workflow]]
 name = "Blackjack Simulation"
 author = "agent"
@@ -50,3 +58,31 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python blackjack_sim.py --num_sessions 3 --num_hands 50 --starting_stake 1000 --standard_bet 10"
+
+[[workflows.workflow]]
+name = "Verify README Example"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --verbose"
+
+[[workflows.workflow]]
+name = "Verify Documentation"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 10 --verbose"
