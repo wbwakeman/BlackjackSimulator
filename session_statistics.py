@@ -126,56 +126,172 @@ class SessionStatistics:
                         self.bankroll_bins[bin_range] += 1
                         break
 
-    def _generate_ascii_histogram(self, bin_data: Dict[str, int], max_width: int = 40) -> str:
-        """Generate ASCII histogram visualization"""
+    def _generate_ascii_histogram(self, bin_data: Dict[str, int], max_width: int = 50) -> str:
+        """Generate ASCII histogram visualization with improved formatting"""
         if not bin_data:
             return "No data available for histogram"
 
         max_count = max(bin_data.values())
-        scale = max_width / (max_count if max_count > 0 else 1)
+        # Minimum bar width for non-zero values to ensure visibility
+        min_bar_width = 3
+        scale = (max_width - min_bar_width) / (max_count if max_count > 0 else 1)
 
-        # Calculate the maximum label length for alignment
+        # Calculate maximum label length for alignment
         max_label_len = max(len(label) for label in bin_data.keys())
 
         histogram = []
         for label, count in bin_data.items():
-            bar_width = int(count * scale)
+            # Ensure minimum bar width for non-zero counts
+            bar_width = min_bar_width + int(count * scale) if count > 0 else 0
             bar = '█' * bar_width
-            # Pad the label to align all bars
+            # Pad label for alignment
             padded_label = f"{label:<{max_label_len}}"
-            histogram.append(f"{padded_label} | {bar} ({count:2d} sessions)")
+            percentage = (count / self.completed_sessions * 100)
+            # Add count and percentage with improved formatting
+            histogram.append(f"{padded_label} | {bar} ({count:2d} sessions, {percentage:5.1f}%)")
 
         return '\n'.join(histogram)
 
     def _calculate_quad_bins_stats(self) -> Dict[str, Dict[str, float]]:
-        """Calculate statistical metrics for quad bins"""
+        """Calculate comprehensive statistical metrics for quad bins"""
         stats_data = {}
 
         for bin_name, values in self.quad_bins.items():
-            if values:
-                mean_value = sum(values) / len(values)
-                # Calculate standard deviation manually if needed
-                if len(values) > 1:
-                    variance = sum((x - mean_value) ** 2 for x in values) / (len(values) - 1)
-                    std_dev = variance ** 0.5
-                else:
-                    std_dev = 0.0
+            # Initialize statistics with default values
+            bin_stats = {
+                'count': len(values),
+                'mean': 0.0,
+                'std': 0.0,
+                'percentage': 0.0,
+                'min': 0.0,
+                'max': 0.0,
+                'median': 0.0,
+                'quartile1': 0.0,
+                'quartile3': 0.0,
+                'skewness': 0.0
+            }
 
-                stats_data[bin_name] = {
-                    'count': len(values),
-                    'mean': mean_value,
-                    'std': std_dev,
-                    'percentage': (len(values) / self.completed_sessions * 100)
-                }
-            else:
-                stats_data[bin_name] = {
-                    'count': 0,
-                    'mean': 0.0,
-                    'std': 0.0,
-                    'percentage': 0.0
-                }
+            if values:
+                # Calculate basic statistics
+                bin_stats['mean'] = sum(values) / len(values)
+                bin_stats['percentage'] = (len(values) / self.completed_sessions * 100)
+                bin_stats['min'] = min(values)
+                bin_stats['max'] = max(values)
+                sorted_values = sorted(values)
+                bin_stats['median'] = sorted_values[len(values)//2]
+
+                # Calculate quartiles and IQR
+                if len(values) >= 4:
+                    bin_stats['quartile1'] = sorted_values[len(values)//4]
+                    bin_stats['quartile3'] = sorted_values[3*len(values)//4]
+                    bin_stats['iqr'] = bin_stats['quartile3'] - bin_stats['quartile1']
+                else:
+                    # For small samples, use simpler quartile estimates
+                    bin_stats['quartile1'] = bin_stats['min']
+                    bin_stats['quartile3'] = bin_stats['max']
+                    bin_stats['iqr'] = bin_stats['max'] - bin_stats['min']
+
+                # Improved standard deviation calculation for small samples
+                if len(values) > 1:
+                    # Use Bessel's correction for small sample sizes
+                    variance = sum((x - bin_stats['mean']) ** 2 for x in values) / (len(values) - 1)
+                    bin_stats['std'] = variance ** 0.5
+
+                    # Calculate skewness for distribution shape
+                    if bin_stats['std'] > 0:
+                        skewness = sum((x - bin_stats['mean']) ** 3 for x in values)
+                        skewness /= (len(values) * bin_stats['std'] ** 3)
+                        bin_stats['skewness'] = skewness
+                else:
+                    # Single value case
+                    bin_stats['std'] = 0.0
+                    bin_stats['skewness'] = 0.0
+
+            stats_data[bin_name] = bin_stats
 
         return stats_data
+
+    def print_quad_bins_analysis(self) -> None:
+        """Print enhanced quad-bins analysis with comprehensive statistics"""
+        if self.quad_bins_threshold is None:
+            return
+
+        threshold = self.quad_bins_threshold
+        lower_threshold = self.initial_bankroll * (1 - threshold)
+        upper_threshold = self.initial_bankroll * (1 + threshold)
+
+        print(f"\nQuad-Bins Analysis (threshold: {threshold*100:.1f}%)")
+        print("=" * 80)
+
+        # Calculate statistics
+        stats = self._calculate_quad_bins_stats()
+
+        # Prepare histogram data with improved formatting
+        hist_data = {
+            f"< ${lower_threshold:,.2f}":
+                len(self.quad_bins['below_threshold']),
+            f"${lower_threshold:,.2f} - ${self.initial_bankroll:,.2f}":
+                len(self.quad_bins['below_initial']),
+            f"${self.initial_bankroll:,.2f} - ${upper_threshold:,.2f}":
+                len(self.quad_bins['above_initial']),
+            f"> ${upper_threshold:,.2f}":
+                len(self.quad_bins['above_threshold'])
+        }
+
+        # Print distribution with improved visualization
+        print("\nBankroll Distribution:")
+        print("-" * 80)
+        print(self._generate_ascii_histogram(hist_data))
+
+        # Print detailed statistics with enhanced formatting
+        print("\nDetailed Statistics:")
+        print("-" * 80)
+        bin_labels = {
+            'below_threshold': 'Significant Loss',
+            'below_initial': 'Moderate Loss',
+            'above_initial': 'Moderate Gain',
+            'above_threshold': 'Significant Gain'
+        }
+
+        for bin_name, bin_stats in stats.items():
+            print(f"\n{bin_labels[bin_name]}:")
+            print(f"  Sessions:      {bin_stats['count']:3d} ({bin_stats['percentage']:5.1f}%)")
+            if bin_stats['count'] > 0:
+                print(f"  Mean:          ${bin_stats['mean']:,.2f}")
+                print(f"  Std Dev:       ${bin_stats['std']:,.2f}")
+                print(f"  Minimum:       ${bin_stats['min']:,.2f}")
+                print(f"  Maximum:       ${bin_stats['max']:,.2f}")
+                print(f"  Median:        ${bin_stats['median']:,.2f}")
+                print(f"  1st Quartile:  ${bin_stats['quartile1']:,.2f}")
+                print(f"  3rd Quartile:  ${bin_stats['quartile3']:,.2f}")
+                if 'skewness' in bin_stats:
+                    skew_desc = "roughly symmetric" if abs(bin_stats['skewness']) < 0.5 else \
+                               "right-skewed" if bin_stats['skewness'] > 0 else "left-skewed"
+                    print(f"  Distribution:  {skew_desc}")
+
+        # Print statistical significance tests if scipy is available
+        if SCIPY_AVAILABLE:
+            test_results = self._perform_statistical_tests()
+            if test_results:
+                print("\nStatistical Significance Analysis:")
+                print("-" * 80)
+                for test_name, p_value in test_results.items():
+                    if p_value is not None:
+                        bin1, bin2 = test_name.split('_vs_')
+                        significance = "Significant" if p_value < 0.05 else "Not significant"
+                        print(f"\n{bin_labels[bin1]} vs {bin_labels[bin2]}:")
+                        print(f"  p-value:      {p_value:.4f}")
+                        print(f"  Conclusion:   {significance} at α=0.05")
+                        if significance == "Significant":
+                            print("  Interpretation: The bankroll distributions between these groups")
+                            print("                 show a statistically significant difference,")
+                            print("                 suggesting distinct performance patterns.")
+                        else:
+                            print("  Interpretation: No statistically significant difference found")
+                            print("                 between these groups. Performance patterns")
+                            print("                 may be due to random chance.")
+        else:
+            print("\nNote: Statistical significance tests unavailable (scipy not installed)")
 
     def _perform_statistical_tests(self) -> Dict[str, Optional[float]]:
         """Perform statistical significance tests between bins"""
@@ -205,70 +321,6 @@ class SessionStatistics:
                 test_results[f'{bin1}_vs_{bin2}'] = None
 
         return test_results
-
-    def print_quad_bins_analysis(self) -> None:
-        """Print quad-bins analysis with ASCII visualization"""
-        if self.quad_bins_threshold is None:
-            return
-
-        threshold = self.quad_bins_threshold
-        lower_threshold = self.initial_bankroll * (1 - threshold)
-        upper_threshold = self.initial_bankroll * (1 + threshold)
-
-        print(f"\nQuad-Bins Analysis (threshold: {threshold*100:.1f}%)")
-        print("=" * 60)
-
-        # Calculate statistics
-        stats = self._calculate_quad_bins_stats()
-
-        # Prepare histogram data with clear bankroll ranges
-        hist_data = {
-            f"< ${lower_threshold:,.2f}":
-                len(self.quad_bins['below_threshold']),
-            f"${lower_threshold:,.2f} - ${self.initial_bankroll:,.2f}":
-                len(self.quad_bins['below_initial']),
-            f"${self.initial_bankroll:,.2f} - ${upper_threshold:,.2f}":
-                len(self.quad_bins['above_initial']),
-            f"> ${upper_threshold:,.2f}":
-                len(self.quad_bins['above_threshold'])
-        }
-
-        # Print distribution header
-        print("\nBankroll Distribution:")
-        print("-" * 60)
-        print(self._generate_ascii_histogram(hist_data))
-
-        # Print detailed statistics for each bin
-        print("\nDetailed Statistics:")
-        print("-" * 60)
-        bin_labels = {
-            'below_threshold': 'Significant Loss',
-            'below_initial': 'Moderate Loss',
-            'above_initial': 'Moderate Gain',
-            'above_threshold': 'Significant Gain'
-        }
-
-        for bin_name, stats_data in stats.items():
-            print(f"\n{bin_labels[bin_name]}:")
-            print(f"  Count:     {stats_data['count']:3d} sessions ({stats_data['percentage']:5.1f}%)")
-            if stats_data['count'] > 0:
-                print(f"  Mean:      ${stats_data['mean']:,.2f}")
-                print(f"  Std Dev:   ${stats_data['std']:,.2f}")
-
-        # Print statistical significance tests if scipy is available
-        if SCIPY_AVAILABLE:
-            test_results = self._perform_statistical_tests()
-            if test_results:
-                print("\nStatistical Significance Tests:")
-                print("-" * 60)
-                for test_name, p_value in test_results.items():
-                    if p_value is not None:
-                        bin1, bin2 = test_name.split('_vs_')
-                        print(f"  {bin_labels[bin1]} vs {bin_labels[bin2]}:")
-                        print(f"    p-value: {p_value:.4f}")
-                        print(f"    {'✓ Significant' if p_value < 0.05 else '✗ Not significant'} at α=0.05")
-        else:
-            print("\nNote: Statistical significance tests unavailable (scipy not installed)")
 
     def print_results(self) -> None:
         """Print comprehensive statistics across all sessions."""
