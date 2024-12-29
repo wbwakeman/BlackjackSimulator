@@ -53,12 +53,21 @@ def parse_args():
                        type=str,
                        choices=['split_8s', 'soft_17', 'double_after_split', 'soft19v6', 'split_aces'],
                        help='Run a specific test scenario in debug mode')
+    parser.add_argument('--quad-bins',
+                       type=float,
+                       help='Enable quad-bins histogram with specified threshold (0.0-1.0)')
 
     args = parser.parse_args()
 
     if args.test_scenario and not args.debug:
         print("Warning: Test scenarios require debug mode. Enabling debug mode.")
         args.debug = True
+
+    # Validate quad-bins threshold if provided
+    if args.quad_bins is not None:
+        if not 0.0 <= args.quad_bins <= 1.0:
+            print(f"Error: quad-bins threshold must be between 0.0 and 1.0")
+            sys.exit(1)
 
     # Handle blackjack payout if provided
     if args.blackjack_payout:
@@ -193,11 +202,12 @@ def main():
     config.dealer_hits_soft_17 = True
     config.allow_surrender = True
 
-    # Initialize multi-session statistics
+    # Initialize multi-session statistics with quad-bins if enabled
     session_stats = SessionStatistics(
         initial_bankroll=args.starting_stake,
         num_sessions=args.num_sessions,
-        num_hands_per_session=args.num_hands
+        num_hands_per_session=args.num_hands,
+        quad_bins_threshold=args.quad_bins
     )
 
     print(f"\nStarting multi-session simulation...")

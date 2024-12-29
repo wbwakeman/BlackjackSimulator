@@ -59,6 +59,10 @@ args = "Verify Configuration"
 task = "workflow.run"
 args = "Verify Changes"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Test Quad-Bins"
+
 [[workflows.workflow]]
 name = "Blackjack Simulation"
 author = "agent"
@@ -212,3 +216,17 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 10 --verbose"
+
+[[workflows.workflow]]
+name = "Test Quad-Bins"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python blackjack_sim.py --num_sessions 5 --num_hands 100 --starting_stake 1000 --standard_bet 25 --quad-bins 0.6 --verbose"
